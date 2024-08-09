@@ -2,32 +2,21 @@
   description = "Catgirl Downloader";
 
   inputs = {
-    flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = inputs:
-    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = [ "x86_64-linux" ];
-      perSystem = { config, self', pkgs, system, ... }: {
-	_module.args.pkgs = import inputs.nixpkgs {
-	  inherit system;
-	  overlays = [
-	    inputs.self.overlays.default
-	  ];
-	};
+  outputs = { self, nixpkgs }: let
+    systems = [ "x86_64-linux" "aarch64-linux" ];
+    forAllSystems = nixpkgs.lib.genAttrs systems;
+    pkgsForEach = nixpkgs.legacyPackages;
+  in {
+    packages = forAllSystems (system: {
+      default = pkgsForEach.${system}.callPackage ./nix/package.nix { };
+      catgirl-downloader = self.packages.${system}.default;
+    });
 
-	packages = {
-	  default = pkgs.catgirl-downloader;
-	  catgirl-downloader = self'.packages.catgirl-downloader;
-	};
-
-	formatter = pkgs.nixpkgs-fmt;
-      };
-      flake = {
-	overlays.default = final: _prev: {
-	  catgirl-downloader = final.callPackage ./nix/package.nix { };
-	};
-      };
-    };
+    devShells = forAllSystems (system: {
+      default = pkgsForEach.${system}.callPackage ./nix/shell.nix { };
+    });
+  };
 }
